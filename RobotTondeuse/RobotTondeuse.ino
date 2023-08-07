@@ -15,7 +15,7 @@ int motorLeftPin2 = 8;
 //int buttonPin = 8;
 
 // Buzzer
-const int BUZZER_PIN = 6;
+const int BUZZER_PIN = 12;
 
 // Vitesse du moteur
 int motorSpeed = 255;
@@ -50,6 +50,8 @@ void setup() {
   tone(BUZZER_PIN, 1000, 100);
   delay(100);
   tone(BUZZER_PIN, 1500, 100);
+
+  forward(255);
 }
 
 void loop() {
@@ -57,7 +59,7 @@ void loop() {
     int state = Serial.parseInt();
     switch (state) {
       case 1: // Avancer
-        forward(motorSpeed);
+        forward(motorSp
         break;
       case 2: // Reculer
         backward(motorSpeed);
@@ -69,16 +71,32 @@ void loop() {
         left(motorSpeed);
         break;
       case 5: // Stop
-        digitalWrite(motorRightPin1, HIGH); 
-        digitalWrite(motorRightPin2, HIGH);
-        
-        digitalWrite(motorLeftPin1, HIGH); 
-        digitalWrite(motorLeftPin2, HIGH);
-        screenPrint(0, 0, "Moteur : Stop");
+        motorStop(true);
+        break;
+      case 6: // Obstacle
+        obstacle();
         break;
     }
+    delay(100);
   }
-  delay(100);
+}
+
+// Cette fonction permet d'afficher le texte souhaité sur l'écran
+void obstacle(){
+  backward(255);
+  delay(2 * 1000);
+  motorStop(false);
+  screenPrint(0, 0, "Obstacle !");
+  int orientation = random(2); // 0 = Gauche, 1 = Droite
+  int time = random(3) + 1;
+  if(orientation == 0){
+    motorLeftMoove(motorSpeed);
+  }
+  else{
+    motorRightMoove(motorSpeed);
+  }
+  delay(time * 1000);
+  forward(255);
 }
 
 // Cette fonction permet d'afficher le texte souhaité sur l'écran
@@ -86,6 +104,17 @@ void screenPrint(int x, int y, String text){
   lcd.clear();
   lcd.setCursor(x, y);
   lcd.print(text);
+}
+
+void motorStop(bool printOnScreen){
+  digitalWrite(motorRightPin1, HIGH); 
+  digitalWrite(motorRightPin2, HIGH);
+  
+  digitalWrite(motorLeftPin1, HIGH); 
+  digitalWrite(motorLeftPin2, HIGH);
+  if(printOnScreen){
+    screenPrint(0, 0, "Moteur : Stop");
+  }
 }
 
 // Cette fonction permet faire tourner le moteur de droite.
