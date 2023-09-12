@@ -11,6 +11,8 @@ int motorLeftEnablePin = 5;
 int motorLeftPin1 = 7;
 int motorLeftPin2 = 8;
 
+int buttonPin = 10;
+
 // Bouton
 //int buttonPin = 8;
 
@@ -19,6 +21,7 @@ const int BUZZER_PIN = 12;
 
 // Vitesse du moteur
 int motorSpeed = 255;
+bool goingAroundTheObstacle = false;
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -34,6 +37,9 @@ void setup() {
   pinMode(motorLeftEnablePin, OUTPUT);
   pinMode(motorLeftPin1, OUTPUT);
   pinMode(motorLeftPin2, OUTPUT);
+
+  // Button
+  pinMode(buttonPin, INPUT);
 
   // Buzzer
   pinMode(BUZZER_PIN, OUTPUT);
@@ -52,14 +58,20 @@ void setup() {
   tone(BUZZER_PIN, 1500, 100);
 
   forward(255);
+  Serial.println("Started");
 }
 
 void loop() {
+  int buttonState = digitalRead(buttonPin);
+  if (buttonState == HIGH) {
+    obstacle();
+  }
+
   if (Serial.available()) {
     int state = Serial.parseInt();
     switch (state) {
       case 1: // Avancer
-        forward(motorSp
+        forward(motorSpeed);
         break;
       case 2: // Reculer
         backward(motorSpeed);
@@ -83,20 +95,24 @@ void loop() {
 
 // Cette fonction permet d'afficher le texte souhaité sur l'écran
 void obstacle(){
-  backward(255);
-  delay(2 * 1000);
-  motorStop(false);
-  screenPrint(0, 0, "Obstacle !");
-  int orientation = random(2); // 0 = Gauche, 1 = Droite
-  int time = random(3) + 1;
-  if(orientation == 0){
-    motorLeftMoove(motorSpeed);
+  if(!goingAroundTheObstacle){
+    goingAroundTheObstacle = true;
+    backward(255);
+    delay(2 * 1000);
+    motorStop(false);
+    screenPrint(0, 0, "Obstacle !");
+    int orientation = random(2); // 0 = Gauche, 1 = Droite
+    int time = random(3) + 1;
+    if(orientation == 0){
+      motorLeftMoove(motorSpeed);
+    }
+    else{
+      motorRightMoove(motorSpeed);
+    }
+    delay(time * 1000);
+    forward(255);
+    goingAroundTheObstacle = false;
   }
-  else{
-    motorRightMoove(motorSpeed);
-  }
-  delay(time * 1000);
-  forward(255);
 }
 
 // Cette fonction permet d'afficher le texte souhaité sur l'écran
