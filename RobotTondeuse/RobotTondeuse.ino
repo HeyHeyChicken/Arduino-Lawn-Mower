@@ -7,8 +7,8 @@
 
 #pragma region Variables
 
-const int OBSTACLE_BACK_TIME = 10 * 1000;
-const int TURN_TIME = 5 * 1000;
+const int OBSTACLE_BACK_TIME = 4 * 1000;
+int turnTime = 0;
 
 long lastTimeForward = 0;
 long lastTimeObstacle = 0;
@@ -17,24 +17,23 @@ long lastTimeTurn = 0;
 int motorStep = 0; // 0 = stop, 1 = forward, 2 = backward, 3 = right, 4 = left
 
 // Moteur droit
-const int MOTOR_RIGHT_ENABLE_PIN = 3;
 const int MOTOR_RIGHT_PIN1 = 4;
-const int MOTOR_RIGHT_PIN2 = 2;
+const int MOTOR_RIGHT_PIN2 = 3;
 
 // Relais
-const int RELAY_PIN = 23;
+const int MOTOR_BLADE_PIN1 = 23;
+const int MOTOR_BLADE_PIN2 = 25;
 
 // Moteur gauche
-const int MOTOR_LEFT_ENABLE_PIN = 5;
-const int MOTOR_LEFT_PIN1 = 7;
-const int MOTOR_LEFT_PIN2 = 8;
+const int MOTOR_LEFT_PIN1 = 6;
+const int MOTOR_LEFT_PIN2 = 7;
 
 // Buzzer
 const int BUZZER_PIN = 12;
 
 // Vitesse du moteur
-const int MOTOR_MAX_SPEED = 255; // Vitesse maximale du moteur
-const int MOTOR_SPEED_STEP = 15; // Vitesse de progression des moteurs (Diviseurs: 1, 3, 5, 15, 17, 51, 85, 255)
+const int MOTOR_MAX_SPEED = 252; // Vitesse maximale du moteur
+const int MOTOR_SPEED_STEP = 14; // Vitesse de progression des moteurs (Diviseurs: 1, 2, 3, 4, 6, 7, 9, 12, 14, 18, 21, 28, 36, 42, 63, 84, 126, 252)
 int motorRightSpeed = 0; // Vitesse actuelle du moteur droit
 int motorLeftSpeed = 0; // Vitesse actuelle du moteur gauche
 
@@ -53,18 +52,18 @@ void setup() {
   screen_print(0, 0, "Initialisation...");
 
   // Moteur droit
-  pinMode(MOTOR_RIGHT_ENABLE_PIN, OUTPUT);
   pinMode(MOTOR_RIGHT_PIN1, OUTPUT);
   pinMode(MOTOR_RIGHT_PIN2, OUTPUT);
   
   // Moteur gauche
-  pinMode(MOTOR_LEFT_ENABLE_PIN, OUTPUT);
   pinMode(MOTOR_LEFT_PIN1, OUTPUT);
   pinMode(MOTOR_LEFT_PIN2, OUTPUT);
 
   // Relais
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH);
+  pinMode(MOTOR_BLADE_PIN1, OUTPUT);
+  pinMode(MOTOR_BLADE_PIN2, OUTPUT);
+	digitalWrite(MOTOR_BLADE_PIN1, LOW);
+	digitalWrite(MOTOR_BLADE_PIN2, LOW);
 
   // Button
   pinMode(BUTTON_PIN, INPUT);
@@ -86,6 +85,7 @@ void setup() {
   bip(1500, 100);
   
   delay(1000);
+
   forward_and_cut();
 }
 
@@ -115,20 +115,26 @@ void obstacle_thread(){
     lastTimeObstacle = 0;
     motor_stop(true);
     int orientation = random(2); // 0 = Gauche, 1 = Droite
-    lastTimeTurn = NOW;
-    if(orientation == 0){
-      left();
-    }
-    else{
-      right();
+    turnTime = random(1000, 3000);
+    Serial.println("[DEBUG] -> " + String(turnTime));
+    if(lastTimeTurn == 0){
+      lastTimeTurn = NOW;
+      if(orientation == 0){
+        left();
+      }
+      else{
+        right();
+      }
     }
   }
 
   // Si le robot a fini de tourner.
-  if(lastTimeTurn != 0 && NOW - lastTimeTurn > TURN_TIME){
-    lastTimeTurn = 0;
-    motor_stop(true);
-    forward_and_cut();
+  if(lastTimeTurn != 0){
+    if(NOW - lastTimeTurn > turnTime){
+      lastTimeTurn = 0;
+      motor_stop(true);
+      forward_and_cut();
+    }
   }
 }
 
@@ -145,12 +151,12 @@ void right_thread(){
     const long NOW = millis();
 
     if(motorLeftSpeed < MOTOR_MAX_SPEED && NOW - lastTimeTurn >= 250){
-      lastTimeTurn = NOW;
+      //lastTimeTurn = NOW;
       motorLeftSpeed = motorLeftSpeed + MOTOR_SPEED_STEP;
 
-      analogWrite(MOTOR_LEFT_ENABLE_PIN, motorLeftSpeed);
+      motorLeftMoove(motorLeftSpeed);
 
-      screen_print(0, 0, "Moteur : Droite : " + String(motorRightSpeed));
+      screen_print(0, 0, "Moteur : Droite : " + String(motorLeftSpeed));
     }
   }
 }
@@ -168,10 +174,10 @@ void left_thread(){
     const long NOW = millis();
 
     if(motorRightSpeed < MOTOR_MAX_SPEED && NOW - lastTimeTurn >= 250){
-      lastTimeTurn = NOW;
+      //lastTimeTurn = NOW;
       motorRightSpeed = motorRightSpeed + MOTOR_SPEED_STEP;
 
-      analogWrite(MOTOR_RIGHT_ENABLE_PIN, motorRightSpeed);
+      motorRightMoove(motorLeftSpeed);
 
       screen_print(0, 0, "Moteur : Gauche : " + String(motorRightSpeed));
     }
@@ -192,14 +198,14 @@ void left_thread(){
 
 // Cette fonction permet faire tourner le moteur de droite.
 void motorRightMoove(int speed){
-  digitalWrite(MOTOR_RIGHT_PIN1, speed > 0 ? HIGH : LOW);
-  digitalWrite(MOTOR_RIGHT_PIN2, speed > 0 ? LOW : HIGH);
+  analogWrite(MOTOR_RIGHT_PIN1, speed > 0 ? speed : 0);
+  analogWrite(MOTOR_RIGHT_PIN2, speed < 0 ? abs(speed) : 0);
 }
 
 // Cette fonction permet faire tourner le moteur de gauche.
 void motorLeftMoove(int speed){
-  digitalWrite(MOTOR_LEFT_PIN1, speed > 0 ? HIGH : LOW);
-  digitalWrite(MOTOR_LEFT_PIN2, speed > 0 ? LOW : HIGH);
+  analogWrite(MOTOR_LEFT_PIN1, speed > 0 ? speed : 0);
+  analogWrite(MOTOR_LEFT_PIN2, speed < 0 ? abs(speed) : 0);
 }
 
 // Cette fonction allume progressivement la lame de tonte.
@@ -212,35 +218,11 @@ void blade_on(){
   bip(500, 500);
   delay(1000);
   bip(1500, 500);
+  delay(1000);
 
   // Déclenchement du relai moteur de tonte preogressif
   if(!DEV_SILENT_MODE){
-    digitalWrite(RELAY_PIN, LOW);
-    delay (100);
-    digitalWrite(RELAY_PIN, HIGH);
-    delay (500);
-    
-    digitalWrite(RELAY_PIN, LOW);
-    delay (100);
-    digitalWrite(RELAY_PIN, HIGH);
-    delay (400);
-    
-    digitalWrite(RELAY_PIN, LOW);
-    delay (100);
-    digitalWrite(RELAY_PIN, HIGH);
-    delay (300);
-    
-    digitalWrite(RELAY_PIN, LOW);
-    delay (100);
-    digitalWrite(RELAY_PIN, HIGH);
-    delay (200);
-    
-    digitalWrite(RELAY_PIN, LOW);
-    delay (100);
-    digitalWrite(RELAY_PIN, HIGH);
-    delay (100);
-
-    digitalWrite(RELAY_PIN, LOW);
+	  analogWrite(MOTOR_BLADE_PIN1, MOTOR_MAX_SPEED);
   }
 
   delay(1000);
@@ -271,10 +253,10 @@ void backward_thread(){
         motorRightSpeed = motorRightSpeed + MOTOR_SPEED_STEP;
         motorLeftSpeed = motorRightSpeed;
 
-        analogWrite(MOTOR_RIGHT_ENABLE_PIN, motorRightSpeed);
-        analogWrite(MOTOR_LEFT_ENABLE_PIN, motorLeftSpeed);
+        motorRightMoove(motorRightSpeed * -1);
+        motorLeftMoove(motorLeftSpeed * -1);
 
-        screen_print(0, 0, "Reculer : " + String(motorRightSpeed));
+        //screen_print(0, 0, "Reculer : " + String(motorRightSpeed));
       }
     }
   }
@@ -283,9 +265,6 @@ void backward_thread(){
 // Cette fonction permet de faire avancer le robot.
 void forward_thread(){
   if(lastTimeObstacle == 0 && motorStep == 1){
-    motorRightMoove(MOTOR_MAX_SPEED);
-    motorLeftMoove(MOTOR_MAX_SPEED);
-
     long now = millis();
 
     if(motorRightSpeed < MOTOR_MAX_SPEED && lastTimeObstacle == 0 && now - lastTimeForward >= 250){
@@ -293,8 +272,10 @@ void forward_thread(){
       motorRightSpeed = motorRightSpeed + MOTOR_SPEED_STEP;
       motorLeftSpeed = motorRightSpeed;
 
-      analogWrite(MOTOR_RIGHT_ENABLE_PIN, motorRightSpeed);
-      analogWrite(MOTOR_LEFT_ENABLE_PIN, motorLeftSpeed);
+      motorRightMoove(motorRightSpeed);
+      motorLeftMoove(motorLeftSpeed);
+      //analogWrite(MOTOR_RIGHT_ENABLE_PIN, motorRightSpeed);
+      //analogWrite(MOTOR_LEFT_ENABLE_PIN, motorLeftSpeed);
 
       screen_print(0, 0, "Avancer : " + String(motorRightSpeed));
     }
@@ -304,7 +285,7 @@ void forward_thread(){
 // Cette fonction bloque les deux moteurs de traction.
 void motor_stop(bool printOnScreen){
   // On bloque le moteur droit en précisant "HIGH" sur les deux pins.
-  digitalWrite(MOTOR_RIGHT_PIN1, HIGH); 
+  digitalWrite(MOTOR_RIGHT_PIN1, HIGH);
   digitalWrite(MOTOR_RIGHT_PIN2, HIGH);
   
   // On bloque le moteur gauche en précisant "HIGH" sur les deux pins.
@@ -322,7 +303,8 @@ void motor_stop(bool printOnScreen){
 // Cette fonction éteint la lame de tonte.
 void blade_off(){
   Serial.println("[BLADE] -> Off");
-  digitalWrite(RELAY_PIN, HIGH);
+	digitalWrite(MOTOR_BLADE_PIN1, LOW);
+	digitalWrite(MOTOR_BLADE_PIN2, LOW);
 }
 
 // Cette fonction permet d'afficher le texte souhaité sur l'écran.
